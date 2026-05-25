@@ -93,29 +93,99 @@ pub(crate) async fn create(
     created_at: DateTime<Utc>,
 ) -> Result<ActiveSession, sqlx::Error> {
     let now = Utc::now();
-    let no_datetime: &Option<DateTime<Utc>> = &None;
-    let session_entry= sqlx::query_as!(
-        SessionEntry,
-        r#"INSERT INTO session_entry (session_key, user_id, user_agent, ip_address, created_at, logged_out_at, logged_out_reason)
+    let no_datetime: Option<DateTime<Utc>> = None;
+    let session_entry= 
+{
+    {
+        #[allow(clippy::all)]
+        {
+            use ::sqlx::Arguments as _;
+            let arg0 = &(session_key);
+            let arg1 = &(user_id);
+            let arg2 = &(user_agent);
+            let arg3 = &(ip_address);
+            let arg4 = &(now);
+            let arg5 = &(no_datetime.clone());
+            let arg6 = &(no_datetime);
+            let mut query_args =
+                <sqlx::sqlite::Sqlite as ::sqlx::database::Database>::Arguments::<'_>::default(
+                );
+            query_args.reserve(
+                7usize,
+                0 + ::sqlx::encode::Encode::<sqlx::sqlite::Sqlite>::size_hint(arg0)
+                    + ::sqlx::encode::Encode::<sqlx::sqlite::Sqlite>::size_hint(arg1)
+                    + ::sqlx::encode::Encode::<sqlx::sqlite::Sqlite>::size_hint(arg2)
+                    + ::sqlx::encode::Encode::<sqlx::sqlite::Sqlite>::size_hint(arg3)
+                    + ::sqlx::encode::Encode::<sqlx::sqlite::Sqlite>::size_hint(arg4)
+                    + ::sqlx::encode::Encode::<sqlx::sqlite::Sqlite>::size_hint(arg5)
+                    + ::sqlx::encode::Encode::<sqlx::sqlite::Sqlite>::size_hint(arg6),
+            );
+            let query_args =
+                ::core::result::Result::<_, ::sqlx::error::BoxDynError>::Ok(query_args)
+                    .and_then(move |mut query_args| {
+                        query_args.add(arg0).map(move |()| query_args)
+                    })
+                    .and_then(move |mut query_args| {
+                        query_args.add(arg1).map(move |()| query_args)
+                    })
+                    .and_then(move |mut query_args| {
+                        query_args.add(arg2).map(move |()| query_args)
+                    })
+                    .and_then(move |mut query_args| {
+                        query_args.add(arg3).map(move |()| query_args)
+                    })
+                    .and_then(move |mut query_args| {
+                        query_args.add(arg4).map(move |()| query_args)
+                    })
+                    .and_then(move |mut query_args| {
+                        query_args.add(arg5).map(move |()| query_args)
+                    })
+                    .and_then(move |mut query_args| {
+                        query_args.add(arg6).map(move |()| query_args)
+                    });
+            ::sqlx::__query_with_result:: <sqlx::sqlite::Sqlite,_>("INSERT INTO session_entry (session_key, user_id, user_agent, ip_address, created_at, logged_out_at, logged_out_reason)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         RETURNING
-            id as "id: SessionEntryId",
+            id as \"id: SessionEntryId\",
             session_key,
-            user_id as "user_id: UserId",
+            user_id as \"user_id: UserId\",
             user_agent,
             ip_address,
-            created_at as "created_at: _",
-            logged_out_at as "logged_out_at: DateTime<Utc>",
-            logged_out_reason as "logged_out_reason: LoggedOutReason"
-        "#,
-        session_key,
-        user_id,
-        user_agent,
-        ip_address,
-        now,
-        no_datetime,
-        no_datetime
-    )
+            created_at as \"created_at: _\",
+            logged_out_at as \"logged_out_at: DateTime<Utc>\",
+            logged_out_reason as \"logged_out_reason: LoggedOutReason\"
+        ",query_args).try_map(|row: sqlx::sqlite::SqliteRow|{
+            use::sqlx::Row as _;
+            #[allow(non_snake_case)]
+            let sqlx_query_as_id = row.try_get_unchecked:: <SessionEntryId,_>(0usize)? .into();
+            #[allow(non_snake_case)]
+            let sqlx_query_as_session_key = row.try_get_unchecked:: <String,_>(1usize)? .into();
+            #[allow(non_snake_case)]
+            let sqlx_query_as_user_id = row.try_get_unchecked:: <UserId,_>(2usize)? .into();
+            #[allow(non_snake_case)]
+            let sqlx_query_as_user_agent = row.try_get_unchecked:: <String,_>(3usize)? .into();
+            #[allow(non_snake_case)]
+            let sqlx_query_as_ip_address = row.try_get_unchecked:: <String,_>(4usize)? .into();
+            #[allow(non_snake_case)]
+            let sqlx_query_as_created_at = row.try_get(5usize)? ;
+            #[allow(non_snake_case)]
+            let sqlx_query_as_logged_out_at = row.try_get_unchecked:: < ::std::option::Option<DateTime<Utc> > ,_>(6usize)? .into();
+            #[allow(non_snake_case)]
+            let sqlx_query_as_logged_out_reason = row.try_get_unchecked:: < ::std::option::Option<LoggedOutReason> ,_>(7usize)? .into();
+            ::std::result::Result::Ok(SessionEntry {
+                r#id: sqlx_query_as_id
+,r#session_key: sqlx_query_as_session_key
+,r#user_id: sqlx_query_as_user_id
+,r#user_agent: sqlx_query_as_user_agent
+,r#ip_address: sqlx_query_as_ip_address
+,r#created_at: sqlx_query_as_created_at
+,r#logged_out_at: sqlx_query_as_logged_out_at
+,r#logged_out_reason: sqlx_query_as_logged_out_reason
+            })
+        })
+        }
+    }
+}
         .fetch_one(conn)
         .await?;
     let saved_session = sqlx::query_as!(
