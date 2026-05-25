@@ -4,36 +4,54 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, SqliteConnection};
 
-use crate::repository::user_repo::UserId;
+use crate::{domain::identifier::id, repository::user_repo::UserId};
 
+id!(SessionEntryId);
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
+enum LoggedOutReason {
+    TimedOut,
+    LoggedOutByUser,
+}
 /// A session object, corresponds to a row in the sessions table
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash, FromRow)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct Session {
+pub(crate) struct SessionEntry {
+    id: SessionEntryId,
     session_key: String,
     user_id: UserId,
     user_agent: String,
     ip_address: String,
-    expires_at: DateTime<Utc>,
     created_at: DateTime<Utc>,
+    logged_out_at: Option<DateTime<Utc>>,
+    logged_out_reason: Option<LoggedOutReason>,
 }
 
-impl Session {
+pub(crate) struct ActiveSession {
+    session_entry_id: SessionEntryId,
+    expires_at: DateTime<Utc>,
+}
+
+
+impl SessionEntry {
     pub(crate) fn new(
         session_key: String,
         user_id: UserId,
         user_agent: String,
         ip_address: String,
-        expires_at: DateTime<Utc>,
         created_at: DateTime<Utc>,
+        // logged_out_at: Option<DateTime<Utc>>,
+        // logged_out_reason: Option<LoggedOutReason>,
     ) -> Self {
         Self {
+            id,
             session_key,
             user_id,
             user_agent,
             ip_address,
-            expires_at,
             created_at,
+            logged_out_at: None,
+            logged_out_reason: None,
         }
     }
 
@@ -47,17 +65,30 @@ impl Session {
         &self.session_key
     }
 
-    /// Get the session expiration time
-    pub(crate) fn expires_at(&self) -> DateTime<Utc> {
-        self.expires_at
-    }
-
     /// Get the age of a session
     pub(crate) fn duration(&self) -> Duration {
         Utc::now()
             .signed_duration_since(self.created_at)
             .to_std()
             .unwrap_or_default()
+    }
+}
+
+impl ActiveSession {
+    fn new(session_entry_id: SessionEntryId, expires_at: DateTime<Utc>) -> Self {
+        Self {
+            session_entry_id,
+            expires_at,
+        }
+    }
+
+    pub(crate) fn session_entry_id(&self) -> SessionEntryId {
+        self.session_entry_id
+    }
+
+    /// Get the session expiration time
+    pub(crate) fn expires_at(&self) -> DateTime<Utc> {
+        self.expires_at
     }
 }
 

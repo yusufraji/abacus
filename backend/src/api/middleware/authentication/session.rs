@@ -7,7 +7,7 @@ use rand::{RngExt, distr::Alphanumeric};
 use crate::{
     APIError,
     api::middleware::authentication::{SESSION_COOKIE_NAME, SESSION_LIFE_TIME},
-    repository::{session_repo::Session, user_repo::UserId},
+    repository::{session_repo::{ActiveSession, SessionEntry}, user_repo::UserId},
 };
 
 impl<S> OptionalFromRequestParts<S> for Session
@@ -24,16 +24,14 @@ where
     }
 }
 
-impl Session {
+impl SessionEntry {
     // Create a new session for a specific user
     pub(crate) fn create(
         user_id: UserId,
         user_agent: &str,
         ip_address: &str,
-        life_time: TimeDelta,
     ) -> Self {
         let session_key = create_new_session_key();
-        let expires_at = get_expires_at(life_time);
         let created_at = Utc::now();
 
         Self::new(
@@ -41,9 +39,23 @@ impl Session {
             user_id,
             user_agent.to_string(),
             ip_address.to_string(),
-            expires_at,
             created_at,
         )
+    }
+
+    pub(crate) fn active_session(
+        &self,
+        life_time: TimeDelta,
+    ) -> ActiveSession {
+        
+        let expires_at = get_expires_at(life_time);
+
+        ActiveSession {
+            session_entry_id: self.id,
+            ex
+
+        }
+
     }
 
     /// Get a cookie containing this session key
