@@ -233,7 +233,7 @@ async fn login(
 
     // Create a new session and cookie
     let session = Session::create(user.id(), &user_agent, &ip, SESSION_LIFE_TIME);
-    session_repo::save(&mut tx, &session).await?;
+    session_repo::create(&mut tx, &session).await?;
 
     // Log the login event
     let logged_in_users_count = session_repo::count(&mut tx).await?;

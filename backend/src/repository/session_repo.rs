@@ -8,7 +8,7 @@ use crate::{domain::identifier::id, repository::user_repo::UserId};
 
 id!(SessionEntryId);
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash, sqlx::Type)]
 enum LoggedOutReason {
     TimedOut,
     LoggedOutByUser,
@@ -32,17 +32,8 @@ pub(crate) struct ActiveSession {
     expires_at: DateTime<Utc>,
 }
 
-
 impl SessionEntry {
-    pub(crate) fn new(
-        session_key: String,
-        user_id: UserId,
-        user_agent: String,
-        ip_address: String,
-        created_at: DateTime<Utc>,
-        // logged_out_at: Option<DateTime<Utc>>,
-        // logged_out_reason: Option<LoggedOutReason>,
-    ) -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             id,
             session_key,
@@ -93,31 +84,53 @@ impl ActiveSession {
 }
 
 /// Save a session, note this converts any i64 timestamps to i64
-pub(crate) async fn save(
+pub(crate) async fn create(
     conn: &mut SqliteConnection,
-    session: &Session,
-) -> Result<Session, sqlx::Error> {
-    let saved_session = sqlx::query_as!(
-        Session,
-        r#"INSERT INTO sessions (session_key, user_id, user_agent, ip_address, expires_at, created_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+    session_key: String,
+    user_id: UserId,
+    user_agent: String,
+    ip_address: String,
+    created_at: DateTime<Utc>,
+) -> Result<ActiveSession, sqlx::Error> {
+    let now = Utc::now();
+    let no_datetime: &Option<DateTime<Utc>> = &None;
+    let session_entry= sqlx::query_as!(
+        SessionEntry,
+        r#"INSERT INTO session_entry (session_key, user_id, user_agent, ip_address, created_at, logged_out_at, logged_out_reason)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         RETURNING
+            id as "id: SessionEntryId",
             session_key,
             user_id as "user_id: UserId",
             user_agent,
             ip_address,
-            expires_at as "expires_at: _",
-            created_at as "created_at: _"
+            created_at as "created_at: _",
+            logged_out_at as "logged_out_at: DateTime<Utc>",
+            logged_out_reason as "logged_out_reason: LoggedOutReason"
         "#,
-        session.session_key,
-        session.user_id,
-        session.user_agent,
-        session.ip_address,
-        session.expires_at,
-        session.created_at
+        session_key,
+        user_id,
+        user_agent,
+        ip_address,
+        now,
+        no_datetime,
+        no_datetime
     )
         .fetch_one(conn)
         .await?;
+    let saved_session = sqlx::query_as!(
+        ActiveSession,
+        r#"INSERT INTO active_sessions (session_entry_id, expires_at)
+        VALUES (?, ?)
+        RETURNING
+            session_entry_id as "session_entry_id: SessionEntryId",
+            expires_at as "expires_at: _"
+        "#,
+        session_entry.id,
+        user_id
+    )
+    .fetch_one(conn)
+    .await?;
 
     Ok(saved_session)
 }
@@ -292,7 +305,7 @@ mod tests {
             TEST_IP_ADDRESS,
             TimeDelta::seconds(60),
         );
-        save(&mut conn, &session).await.unwrap();
+        create(&mut conn, &session).await.unwrap();
 
         let session_from_db = super::get_by_key(&mut conn, &session.session_key)
             .await
@@ -311,7 +324,7 @@ mod tests {
             TEST_IP_ADDRESS,
             TimeDelta::seconds(60),
         );
-        save(&mut conn, &session).await.unwrap();
+        create(&mut conn, &session).await.unwrap();
 
         let session_from_db = super::get_by_key(&mut conn, &session.session_key)
             .await
@@ -338,7 +351,7 @@ mod tests {
             TEST_IP_ADDRESS,
             TimeDelta::seconds(0),
         );
-        save(&mut conn, &session).await.unwrap();
+        create(&mut conn, &session).await.unwrap();
 
         delete_expired_sessions(&mut conn).await.unwrap();
 
@@ -358,7 +371,7 @@ mod tests {
             TEST_IP_ADDRESS,
             TimeDelta::seconds(60),
         );
-        save(&mut conn, &active_session1).await.unwrap();
+        create(&mut conn, &active_session1).await.unwrap();
 
         let active_session2 = Session::create(
             UserId::from(2),
@@ -366,7 +379,7 @@ mod tests {
             TEST_IP_ADDRESS,
             TimeDelta::seconds(120),
         );
-        save(&mut conn, &active_session2).await.unwrap();
+        create(&mut conn, &active_session2).await.unwrap();
 
         let expired_session = Session::create(
             UserId::from(2),
@@ -374,7 +387,7 @@ mod tests {
             TEST_IP_ADDRESS,
             TimeDelta::seconds(0),
         );
-        save(&mut conn, &expired_session).await.unwrap();
+        create(&mut conn, &expired_session).await.unwrap();
 
         assert_eq!(2, super::count(&mut conn).await.unwrap());
     }

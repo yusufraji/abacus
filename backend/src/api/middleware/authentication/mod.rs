@@ -156,7 +156,7 @@ mod tests {
             TEST_IP_ADDRESS,
             SESSION_MIN_LIFE_TIME / 2,
         );
-        session_repo::save(&mut conn, &admin1_session)
+        session_repo::create(&mut conn, &admin1_session)
             .await
             .unwrap();
         let mut admin1_cookie = admin1_session.get_cookie();
@@ -572,7 +572,7 @@ mod tests {
             TEST_IP_ADDRESS,
             SESSION_LIFE_TIME,
         );
-        session_repo::save(&mut conn, &session).await.unwrap();
+        session_repo::create(&mut conn, &session).await.unwrap();
         let mut cookie = session.get_cookie();
         set_default_cookie_properties(&mut cookie);
         let response = app
@@ -607,7 +607,7 @@ mod tests {
             TEST_IP_ADDRESS,
             SESSION_LIFE_TIME,
         );
-        session_repo::save(&mut conn, &session).await.unwrap();
+        session_repo::create(&mut conn, &session).await.unwrap();
         let mut cookie = session.get_cookie();
         set_default_cookie_properties(&mut cookie);
 
@@ -635,7 +635,7 @@ mod tests {
             TEST_IP_ADDRESS,
             SESSION_MIN_LIFE_TIME / 2,
         );
-        session_repo::save(&mut conn, &session).await.unwrap();
+        session_repo::create(&mut conn, &session).await.unwrap();
         let mut cookie = session.get_cookie();
         set_default_cookie_properties(&mut cookie);
 
@@ -742,7 +742,7 @@ mod tests {
             TEST_IP_ADDRESS,
             SESSION_LIFE_TIME,
         );
-        session_repo::save(&mut conn, &session).await.unwrap();
+        session_repo::create(&mut conn, &session).await.unwrap();
         let mut cookie = session.get_cookie();
         set_default_cookie_properties(&mut cookie);
         let response = app
