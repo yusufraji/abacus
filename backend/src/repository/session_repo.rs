@@ -27,9 +27,21 @@ pub(crate) struct SessionEntry {
     logged_out_reason: Option<LoggedOutReason>,
 }
 
+#[derive(Debug, Clone, FromRow)]
 pub(crate) struct ActiveSession {
     session_entry_id: SessionEntryId,
     expires_at: DateTime<Utc>,
+}
+
+/// Temporarily holds all the session information for a logged in user; this is
+/// necessary for `http::Extension` mechanism, and it's never stored in the
+/// database as such.
+#[derive(Debug, Clone, FromRow)]
+pub(crate) struct SessionHolder {
+    #[sqlx(flatten)]
+    session_entry: SessionEntry,
+    #[sqlx(flatten)]
+    active_session: ActiveSession,
 }
 
 impl SessionEntry {
@@ -86,14 +98,19 @@ impl ActiveSession {
 /// Save a session, note this converts any i64 timestamps to i64
 pub(crate) async fn create(
     conn: &mut SqliteConnection,
-    session_key: String,
+    // session_key: String,
     user_id: UserId,
-    user_agent: String,
-    ip_address: String,
+    // user_agent: String,
+    // ip_address: String,
+    SessionIdentifier {
+        session_key,
+        user_agent,
+        ip_address,
+    }: SessionIdentifier,
     created_at: DateTime<Utc>,
 ) -> Result<ActiveSession, sqlx::Error> {
     let now = Utc::now();
-    let no_datetime: &Option<DateTime<Utc>> = &None;
+    let no_datetime: Option<DateTime<Utc>> = None;
     let session_entry= sqlx::query_as!(
         SessionEntry,
         r#"INSERT INTO session_entry (session_key, user_id, user_agent, ip_address, created_at, logged_out_at, logged_out_reason)
@@ -116,7 +133,7 @@ pub(crate) async fn create(
         no_datetime,
         no_datetime
     )
-        .fetch_one(conn)
+        .fetch_one(&mut *conn)
         .await?;
     let saved_session = sqlx::query_as!(
         ActiveSession,
@@ -146,24 +163,29 @@ pub(crate) struct SessionIdentifier {
 pub(crate) async fn get_by_identifier(
     conn: &mut SqliteConnection,
     session: &SessionIdentifier,
-) -> Result<Option<Session>, sqlx::Error> {
+) -> Result<Option<SessionHolder>, sqlx::Error> {
     let now = Utc::now();
 
-    let session: Option<Session> = sqlx::query_as!(
-        Session,
+    let session: Option<SessionHolder> = sqlx::query_as!(
+        SessionHolder,
         r#"
         SELECT
-            session_key,
-            user_id as "user_id: UserId",
-            user_agent,
-            ip_address,
-            expires_at as "expires_at: _",
-            created_at as "created_at: _"
-        FROM sessions
-        WHERE session_key = ?
-        AND user_agent = ?
-        AND ip_address = ?
-        AND expires_at > ?
+            e.id,
+            e.session_key,
+            e.user_id as "user_id: UserId",
+            e.user_agent,
+            e.ip_address,
+            e.created_at as "created_at: _",
+            e.logged_out_at as "logged_out_at: _",
+            e.logged_out_reason as "logged_out_reason: _",
+            a.session_entry_id as "session_entry_id: _",
+            a.expires_at as "expires_at: _"
+        FROM session_entry as e 
+        INNER JOIN active_sessions as a ON a.session_entry_id = e.id
+        WHERE e.session_key = ?
+        AND e.user_agent = ?
+        AND e.ip_address = ?
+        AND a.expires_at > ?
         "#,
         session.session_key,
         session.user_agent,
